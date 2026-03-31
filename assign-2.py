@@ -511,7 +511,7 @@ BASE_TEMPLATE = '''
 # -------------------- Page Templates --------------------
 DASHBOARD_PAGE = '''
 <div class="welcome-header">
-    <h1>Welcome back, Darrell!</h1>
+    <h1>Welcome back, Prithvi!</h1>
     <div class="date-badge">{{ now.strftime('%d %B, %Y') }}</div>
 </div>
 

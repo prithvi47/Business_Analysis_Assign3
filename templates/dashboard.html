@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retail Sales Forecasting Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .header h1 { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .header p { color: #666; font-size: 1.1em; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        .stat-card:hover { transform: translateY(-5px); }
+        .stat-card h3 { color: #667eea; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .stat-card .value { font-size: 2em; font-weight: bold; color: #333; }
+        .stat-card .unit { font-size: 0.8em; color: #666; }
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .chart-container h2 { color: #333; margin-bottom: 15px; font-size: 1.3em; }
+        .metrics-table {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 25px;
+            overflow-x: auto;
+        }
+        .metrics-table h2 { color: #333; margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+        th { background: #667eea; color: white; font-weight: 600; border-radius: 10px; }
+        tr:hover { background: #f5f5f5; }
+        .best-model { background: #d4edda !important; font-weight: bold; }
+        .btn-refresh {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 15px;
+            transition: all 0.3s ease;
+        }
+        .btn-refresh:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102,126,234,0.4); }
+        .insights {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .insights h3 { margin-bottom: 15px; font-size: 1.2em; }
+        .insights ul { list-style: none; padding-left: 0; }
+        .insights li { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.2); }
+        .insights li:last-child { border-bottom: none; }
+        .badge {
+            display: inline-block;
+            background: #e94560;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        .loading { text-align: center; padding: 50px; }
+        .footer {
+            text-align: center;
+            color: white;
+            padding: 20px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏪 Retail Sales Forecasting Dashboard</h1>
+            <p>Advanced Time Series Analysis for Inventory Planning</p>
+            <button class="btn-refresh" onclick="refreshData()">🔄 Refresh Data & Re-forecast</button>
+        </div>
+        
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card"><h3>Total Sales</h3><div class="value" id="totalSales">--</div></div>
+            <div class="stat-card"><h3>Monthly Average</h3><div class="value" id="avgSales">--</div></div>
+            <div class="stat-card"><h3>Peak Month</h3><div class="value" id="peakSales">--</div></div>
+            <div class="stat-card"><h3>Data Period</h3><div class="value" id="dataPeriod" style="font-size: 1.2em;">--</div></div>
+        </div>
+        
+        <div class="chart-container">
+            <h2>📊 Forecast vs Actual Sales <span class="badge">Best Model Highlighted</span></h2>
+            <div id="forecastPlot" style="height: 500px;"></div>
+        </div>
+        
+        <div class="chart-container">
+            <h2>📈 Data Diagnostics & Seasonality Analysis</h2>
+            <div id="diagnosticsPlot" style="min-height: 500px;"></div>
+        </div>
+        
+        <div class="metrics-table">
+            <h2>📋 Model Performance Comparison</h2>
+            <div id="metricsTable">Loading...</div>
+        </div>
+        
+        <div class="insights" id="insights">
+            <h3>💡 Actionable Business Insights</h3>
+            <div id="insightsContent">Loading insights...</div>
+        </div>
+        <div class="footer">
+            <p>📊 Forecast models: Naive | Moving Average | SES | Holt's Linear | Holt-Winters | Damped Trend</p>
+        </div>
+    </div>
+    
+    <script>
+        async function loadDashboard() {
+            await loadData();
+            await loadForecastPlot();
+            await loadDiagnosticsPlot();
+            await loadMetrics();
+        }
+        
+        async function loadData() {
+            try {
+                const response = await fetch('/api/data');
+                const data = await response.json();
+                document.getElementById('totalSales').innerHTML = '$' + data.summary.total_sales.toLocaleString();
+                document.getElementById('avgSales').innerHTML = '$' + Math.round(data.summary.avg_sales).toLocaleString();
+                document.getElementById('peakSales').innerHTML = '$' + data.summary.max_sales.toLocaleString();
+                document.getElementById('dataPeriod').innerHTML = data.summary.period_start + '<br>to<br>' + data.summary.period_end;
+            } catch(e) { console.error('Error loading data:', e); }
+        }
+        
+        async function loadForecastPlot() {
+            try {
+                const forecastRes = await fetch('/api/forecast');
+                const forecastData = await forecastRes.json();
+                const salesRes = await fetch('/api/data');
+                const salesData = await salesRes.json();
+                
+                const trace1 = {
+                    x: salesData.dates,
+                    y: salesData.sales,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Historical Sales',
+                    line: { color: '#888', width: 2 },
+                    opacity: 0.7
+                };
+                
+                const trace2 = {
+                    x: forecastData.test_dates,
+                    y: forecastData.actual_sales,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Actual (Test Period)',
+                    line: { color: 'black', width: 3 },
+                    marker: { size: 8, color: 'black', symbol: 'circle' }
+                };
+                
+                const trace3 = {
+                    x: forecastData.test_dates,
+                    y: forecastData.predictions,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: `📈 Forecast: ${forecastData.best_model}`,
+                    line: { color: '#e94560', width: 3, dash: 'dash' },
+                    marker: { size: 6, color: '#e94560', symbol: 'diamond' }
+                };
+                
+                const layout = {
+                    title: `🎯 Best Model: ${forecastData.best_model} | MAPE: ${forecastData.metrics.find(m => m.model === forecastData.best_model)?.mape || '?'}%`,
+                    xaxis: { title: 'Date', tickangle: -45, gridcolor: '#eee' },
+                    yaxis: { title: 'Sales ($)', gridcolor: '#eee' },
+                    hovermode: 'closest',
+                    showlegend: true,
+                    height: 500,
+                    plot_bgcolor: 'white',
+                    paper_bgcolor: 'white'
+                };
+                
+                Plotly.newPlot('forecastPlot', [trace1, trace2, trace3], layout);
+            } catch(e) { console.error('Error loading forecast plot:', e); }
+        }
+        
+        async function loadDiagnosticsPlot() {
+            try {
+                const response = await fetch('/api/plot/diagnostics');
+                const data = await response.json();
+                const img = document.createElement('img');
+                img.src = 'data:image/png;base64,' + data.image;
+                img.style.width = '100%';
+                img.style.borderRadius = '10px';
+                img.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                const container = document.getElementById('diagnosticsPlot');
+                container.innerHTML = '';
+                container.appendChild(img);
+            } catch(e) { console.error('Error loading diagnostics:', e); }
+        }
+        
+        async function loadMetrics() {
+            try {
+                const response = await fetch('/api/forecast');
+                const data = await response.json();
+                
+                if (!data.metrics || data.metrics.length === 0) {
+                    document.getElementById('metricsTable').innerHTML = '<p>No metrics available</p>';
+                    return;
+                }
+                
+                let html = '<table><thead><tr><th>Model</th><th>MAE ($)</th><th>RMSE ($)</th><th>MAPE (%)</th><th>Status</th></tr></thead><tbody>';
+                data.metrics.forEach(metric => {
+                    html += `<tr ${metric.is_best ? 'class="best-model"' : ''}>`;
+                    html += `<td><strong>${metric.model}</strong>${metric.is_best ? ' 🏆' : ''}</td>`;
+                    html += `<td>$${metric.mae.toLocaleString()}</td>`;
+                    html += `<td>$${metric.rmse.toLocaleString()}</td>`;
+                    html += `<td><strong>${metric.mape}%</strong></td>`;
+                    html += `<td>${metric.is_best ? '✓ Best Performing' : ''}</td>`;
+                    html += `</tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('metricsTable').innerHTML = html;
+                
+                const bestModel = data.metrics.find(m => m.is_best);
+                const baseline = data.metrics.find(m => m.model === 'Naive (Baseline)');
+                const improvement = baseline ? (baseline.mape - bestModel.mape).toFixed(1) : 'N/A';
+                
+                const insightsHtml = `
+                    <ul>
+                        <li>🎯 <strong>Best Model:</strong> ${bestModel.model} achieves <strong>${bestModel.mape}% MAPE</strong> forecast accuracy</li>
+                        <li>📦 <strong>Recommended Safety Stock (95% confidence):</strong> $${data.business_kpis.safety_stock_95.toLocaleString()}</li>
+                        <li>🎄 <strong>December Peak Alert:</strong> Expect significant holiday sales increase - Order inventory by September</li>
+                        <li>☀️ <strong>July Promotion Opportunity:</strong> Mid-year sales lift detected - Plan promotions accordingly</li>
+                        <li>💰 <strong>Forecast Improvement:</strong> Using ${bestModel.model} reduces forecast error by <strong>${improvement}%</strong> compared to Naive baseline</li>
+                        <li>📊 <strong>Data Quality:</strong> ${data.business_kpis.data_quality} | <strong>${data.business_kpis.forecast_horizon}</strong> months forecast horizon</li>
+                    </ul>
+                `;
+                document.getElementById('insightsContent').innerHTML = insightsHtml;
+            } catch(e) { console.error('Error loading metrics:', e); }
+        }
+        
+        async function refreshData() {
+            const btn = document.querySelector('.btn-refresh');
+            btn.textContent = '🔄 Refreshing...';
+            btn.disabled = true;
+            try {
+                const response = await fetch('/api/refresh');
+                const result = await response.json();
+                await loadDashboard();
+                btn.textContent = '✅ ' + result.message;
+                setTimeout(() => {
+                    btn.textContent = '🔄 Refresh Data & Re-forecast';
+                    btn.disabled = false;
+                }, 2000);
+            } catch(e) {
+                console.error('Error refreshing:', e);
+                btn.textContent = '❌ Error';
+                setTimeout(() => {
+                    btn.textContent = '🔄 Refresh Data & Re-forecast';
+                    btn.disabled = false;
+                }, 2000);
+            }
+        }
+        
+        // Load dashboard on page load
+        loadDashboard();
+    </script>
+</body>
+</html>
